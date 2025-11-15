@@ -1,8 +1,7 @@
 
 def listen(prompt: str = "I'm listening… (or type and press Enter): ") -> str:
     """
-    Try microphone via SpeechRecognition; if not available, fall back to input().
-    Optimized for Mac with better error handling.
+    Try the default microphone via SpeechRecognition; if not available, fall back to input().
     """
     try:
         import speech_recognition as sr  # type: ignore
@@ -11,7 +10,6 @@ def listen(prompt: str = "I'm listening… (or type and press Enter): ") -> str:
         return input(prompt)
 
     r = sr.Recognizer()
-    # Adjust for Mac - use lower energy threshold for better recognition
     r.energy_threshold = 300
     r.dynamic_energy_threshold = True
     
