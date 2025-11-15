@@ -1,3 +1,8 @@
 pyttsx3==2.91
 SpeechRecognition==3.14.3
 pyaudio==0.2.14
+python-dotenv==1.0.1
+openai==1.17.0
+torch==2.2.2
+numpy==1.26.4
+whisper==1.1.10

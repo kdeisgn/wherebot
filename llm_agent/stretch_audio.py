@@ -188,7 +188,7 @@ class StretchAudio:
         except usb.core.USBError:
             print("[ERROR] Initializing StretchAudio. Respeaker not on USB bus.")
     
-    def talk_to_stretch(self):
+    def talk_to_stretch(self, output_path="output.wav"):
         if self.dev:
             respeaker = Tuning(self.dev)
             while True:
@@ -201,13 +201,15 @@ class StretchAudio:
                             print("[INFO] Speech detected")
                             frames = self.record_audio_until_end_of_speech(respeaker)
                             print("[INFO] Saving audio...")
-                            self.save_audio(frames)
+                            target = output_path or "output.wav"
+                            self.save_audio(frames, fname=target)
                             self.printed_wait_statement = False
-                            break                                           #XXX Always loop?
+                            return target
                 except Exception as e:
                     print(f"[ERROR] Error recording audio: {e}")
         else:
             print("[ERROR] Unable to detect Respeaker")
+        return None
 
     def record_audio(self, seconds=3):
         '''

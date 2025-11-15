@@ -11,10 +11,12 @@ def main(whisper_model_path):
     llm = LLMAgent()
     
     # << Talk to Stretch >>
-    stretch_audio.talk_to_stretch()
+    audio_file = stretch_audio.talk_to_stretch()
+    if audio_file is None:
+        print("[ERROR] No audio was captured from Stretch.")
+        sys.exit(1)
 
     # << Whisper audio transcription >>
-    audio_file = "output.wav"
     audio_transcription = tts.transcribe_audio(audio_file)
     print(f"User: {audio_transcription}")
 

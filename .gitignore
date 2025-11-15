@@ -1,4 +1,4 @@
 .env
 __pycache__
 whisper_turbo_model.pth
-
+.idea

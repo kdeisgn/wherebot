@@ -1,41 +1,23 @@
-# wherebot_basic/run.py
+#!/usr/bin/env python3
 import json
 from pathlib import Path
 
-from audio_stt import listen
+from request_parser import LLMRequestParser, RequestDetails
+from speech_interface import SpeechInterface
 from voice import say
 from robot import Robot
-from intent import parse_intent, needs_clarification
 
 DATA_FILE = Path(__file__).with_name("request_data.json")
 
 
-def prompt_for_request() -> str:
+def prompt_for_request(speech: SpeechInterface) -> str:
     """Ask the user for a full sentence describing the target object."""
     say("Hi! Tell me what you want me to find.")
     print("Hi! Tell me what you want me to find.")
-    return listen("Describe what to find: ").strip()
+    return speech.listen("Describe what to find: ").strip()
 
 
-def ask_last_seen_location() -> str:
-    """Prompt the user for where they last saw the item."""
-    say("Where is the last time you seen it?")
-    print("Where is the last time you seen it?")
-    return listen("Last seen location (you can skip): ").strip()
-
-
-def ask_traits() -> list[str]:
-    """Gather optional descriptive details; returns a list."""
-    say("Share any details or clues about it. You can skip this.")
-    print("Tell me any traits or clues. (comma separated, optional)")
-    response = listen("Details (press Enter to skip): ").strip()
-    if not response:
-        return []
-    traits = [part.strip() for part in response.split(",")]
-    return [t for t in traits if t]
-
-
-def confirm_request(obj: str, location: str, traits: list[str]) -> bool:
+def confirm_request(obj: str, location: str, traits: list[str], speech: SpeechInterface) -> bool:
     """Confirm the full search request with the user in natural language."""
     voice_parts = [f"you're looking for the {obj}"]
     if location:
@@ -54,17 +36,17 @@ def confirm_request(obj: str, location: str, traits: list[str]) -> bool:
 
     say(f"So just to make sure, {voice_summary}. Did I get that right?")
     print(f"Just to confirm, {text_summary}. (yes/no)")
-    reply = listen("Is this correct? (yes/no): ").strip().lower()
+    reply = speech.listen("Is this correct? (yes/no): ").strip().lower()
     return reply.startswith("y")
 
 
-def save_request(obj: str, location: str, traits: list[str]) -> None:
+def save_request(details: RequestDetails) -> None:
     """Persist the simple task description for future stages."""
     payload = {
-        "object": obj,
+        "object": details.object,
         "inferred_clues": {
-            "last_seen_location": location,
-            "traits": traits,
+            "last_seen_location": details.last_seen_location,
+            "traits": details.traits,
         },
         "priority_zones": [],
         "if_found": False,
@@ -73,26 +55,25 @@ def save_request(obj: str, location: str, traits: list[str]) -> None:
 
 
 def main() -> None:
+    speech = SpeechInterface()
+    parser = LLMRequestParser()
     r = Robot()
     try:
-        utterance = prompt_for_request()
-        obj = parse_intent(utterance)
-        if needs_clarification(obj):
+        utterance = prompt_for_request(speech)
+        details = parser.parse(utterance)
+        if not details.object:
             say("I didn't catch the object in that sentence.")
             print("No clear object was detected.")
             return
 
-        location = ask_last_seen_location()
-        traits = ask_traits()
-
-        if confirm_request(obj, location, traits):
-            save_request(obj, location, traits)
-            say(f"Great! I'll start looking for {obj}. Ready to go.")
-            print(f"Confirmed: {obj}")
-            if location:
-                print(f"Last seen: {location}")
-            if traits:
-                print(f"Details: {', '.join(traits)}")
+        if confirm_request(details.object, details.last_seen_location, details.traits, speech):
+            save_request(details)
+            say(f"Great! I'll start looking for {details.object}. Ready to go.")
+            print(f"Confirmed: {details.object}")
+            if details.last_seen_location:
+                print(f"Last seen: {details.last_seen_location}")
+            if details.traits:
+                print(f"Details: {', '.join(details.traits)}")
             print("Ready to go.")
         else:
             say("Okay, let's try again later.")
