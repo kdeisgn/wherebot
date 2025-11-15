@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 from typing import Optional
@@ -17,12 +18,17 @@ class SpeechInterface:
     SpeechRecognition/input() helper when the hardware or model is unavailable.
     """
 
-    def __init__(self, whisper_model_path: Optional[str] = None):
+    def __init__(self, whisper_model_path: Optional[str] = None, use_stretch_audio: Optional[bool] = None):
         self._stretch_audio = None
         self._tts_agent = None
         self._whisper_model_path = whisper_model_path or self._default_model_path()
         self._latest_audio_path = Path(__file__).with_name("latest_request.wav")
-        self._bootstrap_whisper_stack()
+        env_preference = os.environ.get("USE_STRETCH_AUDIO")
+        if use_stretch_audio is None:
+            use_stretch_audio = bool(env_preference) and env_preference not in {"0", "false", "False"}
+        self._prefer_stretch = use_stretch_audio
+        if self._prefer_stretch:
+            self._bootstrap_whisper_stack()
 
     def _default_model_path(self) -> str:
         return str(Path(__file__).resolve().parents[1] / "llm_agent" / "whisper_model.pt")
@@ -48,7 +54,7 @@ class SpeechInterface:
         Capture audio with the richest available pipeline.
         Always falls back to keyboard/microphone input helper.
         """
-        if self.available:
+        if self._prefer_stretch and self.available:
             try:
                 print(prompt)
                 audio_path = self._latest_audio_path
