@@ -5,61 +5,61 @@ from ultralytics import YOLO
 
 class DesktopObjectDetector:
     def __init__(self):
-        print("加载YOLOv8模型...")
+        print("Loading YOLOv8 model...")
         self.model = YOLO('yolov8n.pt')
-        # YOLO预训练模型中可能与盒子相关的类别
+        # YOLO pre-trained model classes that might be related to boxes
         self.box_related_classes = ['box', 'package', 'cardboard', 'paper', 'tissue']
         
     def detect_objects(self):
-        """检测桌面物体"""
+        """Detect desktop objects"""
         try:
             import pyrealsense2 as rs
             
-            # 初始化摄像头
+            # Initialize camera
             pipeline = rs.pipeline()
             config = rs.config()
             config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
             pipeline.start(config)
-            print("🎥 摄像头启动成功! 将纸巾盒和纸箱放在摄像头前")
-            print("📦 按 'q' 退出, 按 's' 保存当前图像")
+            print("🎥 Camera started successfully! Place tissue boxes and cardboard boxes in front of the camera")
+            print("📦 Press 'q' to quit, press 's' to save current image")
             
             while True:
-                # 获取帧
+                # Get frame
                 frames = pipeline.wait_for_frames()
                 color_frame = frames.get_color_frame()
                 if not color_frame:
                     continue
                 
-                # 转换为numpy数组
+                # Convert to numpy array
                 image = np.asanyarray(color_frame.get_data())
                 
-                # YOLO检测
+                # YOLO detection
                 results = self.model(image)
                 
-                # 显示结果
+                # Display results
                 annotated_frame = results[0].plot()
-                cv2.imshow('桌面物体检测 - Stretch', annotated_frame)
+                cv2.imshow('Desktop Object Detection - Stretch', annotated_frame)
                 
-                # 专门检测盒子类物体
+                # Specifically detect box-like objects
                 self._detect_box_objects(results, image)
                 
-                # 键盘控制
+                # Keyboard controls
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
                     break
                 elif key == ord('s'):
-                    # 保存当前图像用于后续训练
+                    # Save current image for later training
                     cv2.imwrite('desktop_objects.jpg', image)
-                    print("💾 图像已保存为 'desktop_objects.jpg'")
+                    print("💾 Image saved as 'desktop_objects.jpg'")
                     
             pipeline.stop()
             cv2.destroyAllWindows()
             
         except Exception as e:
-            print(f"摄像头错误: {e}")
+            print(f"Camera error: {e}")
     
     def _detect_box_objects(self, results, image):
-        """专门检测盒子类物体"""
+        """Specifically detect box-like objects"""
         box_detections = []
         
         for r in results:
@@ -69,18 +69,18 @@ class DesktopObjectDetector:
                 class_name = self.model.names[class_id]
                 confidence = float(box.conf[0])
                 
-                # 检查是否是盒子类物体
+                # Check if it's a box-like object
                 if any(box_word in class_name.lower() for box_word in self.box_related_classes):
                     box_detections.append((class_name, confidence))
                     
-                    # 获取边界框坐标
+                    # Get bounding box coordinates
                     x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                    print(f"📦 检测到盒子类物体: {class_name} ({confidence:.2f})")
-                    print(f"   位置: [{x1:.0f}, {y1:.0f}, {x2:.0f}, {y2:.0f}]")
+                    print(f"📦 Detected box-like object: {class_name} ({confidence:.2f})")
+                    print(f"   Position: [{x1:.0f}, {y1:.0f}, {x2:.0f}, {y2:.0f}]")
         
-        # 如果没有检测到盒子类物体，给出提示
+        # If no box-like objects detected, provide hint
         if not box_detections and len(results[0].boxes) > 0:
-            print("👀 检测到物体，但没有识别为盒子类。尝试调整物体位置或光线。")
+            print("👀 Objects detected, but none recognized as box-like. Try adjusting object position or lighting.")
 
 if __name__ == "__main__":
     detector = DesktopObjectDetector()
