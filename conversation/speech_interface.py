@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
-from audio_stt import google_transcribe_file, listen as fallback_listen
+from audio_stt import listen as fallback_listen
 
 
 class SpeechInterface:
@@ -69,9 +69,6 @@ class SpeechInterface:
         return fallback_listen(prompt)
 
     def _transcribe_stretch_audio(self, audio_path: str) -> str:
-        text = google_transcribe_file(audio_path)
-        if text:
-            return text
         if self._tts_agent:
             try:
                 whisper_text = self._tts_agent.transcribe_audio(audio_path)

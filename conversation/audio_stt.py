@@ -1,6 +1,10 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+import sys
+import tempfile
 from typing import Optional, Tuple
 
 try:
@@ -8,10 +12,33 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     sr = None  # type: ignore
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.append(str(REPO_ROOT))
+
+try:
+    from llm_agent.whisper_agent import TTSAgent
+except Exception:
+    TTSAgent = None  # type: ignore
+
+_WHISPER_AGENT: Optional["TTSAgent"] = None
+
+
+def _get_whisper_agent() -> Optional["TTSAgent"]:
+    global _WHISPER_AGENT
+    if _WHISPER_AGENT is None and TTSAgent is not None:
+        model_path = REPO_ROOT / "llm_agent" / "whisper_turbo_model.pth"
+        try:
+            _WHISPER_AGENT = TTSAgent(str(model_path))
+        except Exception as exc:
+            print(f"[WARN] Unable to bootstrap Whisper model: {exc}")
+            _WHISPER_AGENT = None
+    return _WHISPER_AGENT
+
 
 def _capture_audio(prompt: str) -> Optional[Tuple["sr.Recognizer", "sr.AudioData"]]:
     """
-    Collect one utterance from the default microphone.
+    Collect one utterance from the default microphone using PyAudio.
     Returns (recognizer, audio) or None if audio could not be captured.
     """
     if sr is None:
@@ -34,54 +61,9 @@ def _capture_audio(prompt: str) -> Optional[Tuple["sr.Recognizer", "sr.AudioData
     return None
 
 
-def google_transcribe(prompt: str) -> Optional[str]:
-    """
-    Try a single pass of Google speech recognition.
-    Returns None if the speech service or microphone was unavailable.
-    """
-    bundle = _capture_audio(prompt)
-    if not bundle:
-        return None
-    recognizer, audio = bundle
-    try:
-        text = recognizer.recognize_google(audio)
-        print(f"Heard: {text}")
-        return text
-    except sr.UnknownValueError:
-        print("Could not understand audio")
-    except sr.RequestError as exc:
-        print(f"Error with speech recognition service: {exc}")
-    return None
-
-
-def google_transcribe_file(audio_path: str) -> Optional[str]:
-    """
-    Run Google's recognizer on an audio file recorded elsewhere (e.g. Stretch mic).
-    """
-    if sr is None:
-        return None
-
-    recognizer = sr.Recognizer()
-    try:
-        with sr.AudioFile(audio_path) as source:
-            audio = recognizer.record(source)
-        text = recognizer.recognize_google(audio)
-        print(f"Heard: {text}")
-        return text
-    except FileNotFoundError:
-        print(f"[WARN] Audio file not found: {audio_path}")
-    except sr.UnknownValueError:
-        print("Could not understand Stretch audio")
-    except sr.RequestError as exc:
-        print(f"Google speech service error: {exc}")
-    except Exception as exc:
-        print(f"[WARN] Failed to transcribe Stretch audio: {exc}")
-    return None
-
-
 def listen(prompt: str = "I'm listening… (or type and press Enter): ") -> str:
     """
-    Try the default microphone via Google; if that fails, use Sphinx or keyboard input.
+    Capture audio via PyAudio and transcribe with Whisper; fall back to keyboard input.
     """
     if sr is None:
         return input(prompt)
@@ -91,18 +73,28 @@ def listen(prompt: str = "I'm listening… (or type and press Enter): ") -> str:
         return input(prompt)
     recognizer, audio = bundle
 
+    agent = _get_whisper_agent()
+    if agent is None:
+        print("[WARN] Whisper unavailable; falling back to keyboard input.")
+        return input(prompt)
+
+    tmp_path = None
     try:
-        text = recognizer.recognize_google(audio)
-        print(f"Heard: {text}")
-        return text
-    except sr.UnknownValueError:
-        print("Could not understand audio")
-        return input("(speech not understood) Please type: ")
-    except sr.RequestError as exc:
-        print(f"Error with speech recognition service: {exc}")
-        try:
-            text = recognizer.recognize_sphinx(audio)
-            print(f"Heard (offline): {text}")
-            return text
-        except Exception:
-            return input("(speech service unavailable) Please type: ")
+        wav_data = audio.get_wav_data()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            tmp.write(wav_data)
+            tmp_path = tmp.name
+        text = agent.transcribe_audio(tmp_path)
+        if text:
+            print(f"Heard: {text}")
+            return text.strip()
+    except Exception as exc:
+        print(f"[WARN] Whisper transcription failed: {exc}")
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+    return input("(speech not understood) Please type: ")
