@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
-from audio_stt import google_transcribe, listen as fallback_listen
+from audio_stt import google_transcribe_file, listen as fallback_listen
 
 
 class SpeechInterface:
@@ -54,18 +54,13 @@ class SpeechInterface:
         Capture audio with the richest available pipeline.
         Always falls back to keyboard/microphone input helper.
         """
-        # Always attempt Google transcription first so the user can simply speak.
-        transcript = self._try_google_transcription(prompt)
-        if transcript:
-            return transcript
-
         if self._prefer_stretch and self.available:
             try:
                 print(prompt)
                 audio_path = self._latest_audio_path
                 recorded_path = self._stretch_audio.talk_to_stretch(str(audio_path))
                 if recorded_path:
-                    transcript = self._tts_agent.transcribe_audio(recorded_path)
+                    transcript = self._transcribe_stretch_audio(recorded_path)
                     if transcript:
                         print(f"Heard: {transcript}")
                         return transcript.strip()
@@ -73,11 +68,19 @@ class SpeechInterface:
                 print(f"[WARN] Whisper-based transcription failed: {exc}")
         return fallback_listen(prompt)
 
-    def _try_google_transcription(self, prompt: str) -> str:
+    def _transcribe_stretch_audio(self, audio_path: str) -> str:
+        text = google_transcribe_file(audio_path)
+        if text:
+            return text
+        if self._tts_agent:
+            try:
+                whisper_text = self._tts_agent.transcribe_audio(audio_path)
+                if whisper_text:
+                    return whisper_text
+            except Exception as exc:
+                print(f"[WARN] Whisper transcription fallback failed: {exc}")
         try:
-            text = google_transcribe(prompt)
-        except Exception as exc:  # pragma: no cover - guard against SR errors
-            print(f"[WARN] Google speech recognition failed: {exc}")
-            return ""
-
-        return text.strip() if text else ""
+            os.remove(audio_path)
+        except OSError:
+            pass
+        return ""

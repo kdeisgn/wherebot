@@ -17,7 +17,7 @@ def say(text: str) -> None:
         with _lock:
             _engine.stop()
             _engine.say(text)
-            _engine.runAndWait(2)
+            _engine.runAndWait()
         return
 
     print(f"[VOICE] {text}")

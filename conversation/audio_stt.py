@@ -54,6 +54,31 @@ def google_transcribe(prompt: str) -> Optional[str]:
     return None
 
 
+def google_transcribe_file(audio_path: str) -> Optional[str]:
+    """
+    Run Google's recognizer on an audio file recorded elsewhere (e.g. Stretch mic).
+    """
+    if sr is None:
+        return None
+
+    recognizer = sr.Recognizer()
+    try:
+        with sr.AudioFile(audio_path) as source:
+            audio = recognizer.record(source)
+        text = recognizer.recognize_google(audio)
+        print(f"Heard: {text}")
+        return text
+    except FileNotFoundError:
+        print(f"[WARN] Audio file not found: {audio_path}")
+    except sr.UnknownValueError:
+        print("Could not understand Stretch audio")
+    except sr.RequestError as exc:
+        print(f"Google speech service error: {exc}")
+    except Exception as exc:
+        print(f"[WARN] Failed to transcribe Stretch audio: {exc}")
+    return None
+
+
 def listen(prompt: str = "I'm listening… (or type and press Enter): ") -> str:
     """
     Try the default microphone via Google; if that fails, use Sphinx or keyboard input.
