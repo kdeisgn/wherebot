@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import sys
+import re
 from typing import Any, Dict, List
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -64,10 +65,53 @@ class LLMRequestParser:
         if self._agent:
             payload = self._agent.extract_object_details(utterance)
             return RequestDetails(
-                object=payload.get("object", ""),
+                object=_core_object_word(payload.get("object", "")),
                 last_seen_location=payload.get("last_seen_location", ""),
                 traits=payload.get("traits", []),
             )
 
         print("[WARN] Falling back to keyword intent parsing.")
-        return RequestDetails(parse_intent(utterance), "", [])
+        return RequestDetails(_core_object_word(parse_intent(utterance)), "", [])
+
+
+_TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
+_LOCATION_CUES = {
+    "at",
+    "on",
+    "in",
+    "inside",
+    "near",
+    "next",
+    "nextto",
+    "by",
+    "beside",
+    "under",
+    "over",
+    "behind",
+    "around",
+    "beneath",
+    "below",
+    "above",
+    "between",
+    "toward",
+}
+
+
+def _core_object_word(phrase: str) -> str:
+    """
+    Reduce a phrase to a single representative word describing the object.
+    Stops once a location cue appears.
+    """
+    phrase = (phrase or "").strip().lower()
+    if not phrase:
+        return ""
+
+    tokens = _TOKEN_RE.findall(phrase)
+    object_tokens: List[str] = []
+    for token in tokens:
+        if token in _LOCATION_CUES:
+            break
+        object_tokens.append(token)
+    if not object_tokens:
+        return ""
+    return object_tokens[-1]
