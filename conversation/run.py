@@ -42,16 +42,28 @@ def confirm_request(obj: str, location: str, traits: list[str], speech: SpeechIn
 
 def save_request(details: RequestDetails) -> None:
     """Persist the simple task description for future stages."""
-    payload = {
-        "object": details.object,
-        "inferred_clues": {
-            "last_seen_location": details.last_seen_location,
-            "traits": details.traits,
-        },
-        "priority_zones": [],
-        "if_found": False,
-    }
+    payload = details.to_payload()
     DATA_FILE.write_text(json.dumps(payload, indent=2))
+
+
+def fill_missing_details(details: RequestDetails, speech: SpeechInterface) -> RequestDetails:
+    """
+    Prompt the user for missing location/trait details if the LLM response omitted them.
+    """
+    location = details.last_seen_location
+    traits = details.traits
+
+    if not location:
+        say("Where did you last see it?")
+        location = speech.listen("Where did you last see it? (Enter to skip): ").strip()
+
+    if not traits:
+        say("Any distinctive traits I should know about?")
+        trait_text = speech.listen("List any visual traits (comma separated, enter to skip): ").strip()
+        if trait_text:
+            traits = [t.strip() for t in trait_text.split(",") if t.strip()]
+
+    return RequestDetails(details.object, location, traits)
 
 
 def main() -> None:
@@ -66,14 +78,23 @@ def main() -> None:
             print("No clear object was detected.")
             return
 
-        if confirm_request(details.object, details.last_seen_location, details.traits, speech):
-            save_request(details)
-            say(f"Great! I'll start looking for {details.object}. Ready to go.")
-            print(f"Confirmed: {details.object}")
-            if details.last_seen_location:
-                print(f"Last seen: {details.last_seen_location}")
-            if details.traits:
-                print(f"Details: {', '.join(details.traits)}")
+        structured_payload = details.to_payload()
+        print("Structured request (LLM output):")
+        print(json.dumps(structured_payload, indent=2))
+
+        enriched = fill_missing_details(details, speech)
+        final_payload = enriched.to_payload()
+        print("Final structured request:")
+        print(json.dumps(final_payload, indent=2))
+
+        if confirm_request(enriched.object, enriched.last_seen_location, enriched.traits, speech):
+            save_request(enriched)
+            say(f"Great! I'll start looking for {enriched.object}. Ready to go.")
+            print(f"Confirmed: {enriched.object}")
+            if enriched.last_seen_location:
+                print(f"Last seen: {enriched.last_seen_location}")
+            if enriched.traits:
+                print(f"Details: {', '.join(enriched.traits)}")
             print("Ready to go.")
         else:
             say("Okay, let's try again later.")

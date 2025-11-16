@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import sys
-from typing import List
+from typing import Any, Dict, List
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -25,6 +25,18 @@ class RequestDetails:
     object: str
     last_seen_location: str
     traits: List[str]
+
+    def to_payload(self) -> Dict[str, Any]:
+        """Return a JSON-serializable payload for downstream stages."""
+        return {
+            "object": self.object,
+            "inferred_clues": {
+                "last_seen_location": self.last_seen_location,
+                "traits": self.traits,
+            },
+            "priority_zones": [],
+            "if_found": False,
+        }
 
 
 class LLMRequestParser:

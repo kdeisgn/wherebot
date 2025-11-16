@@ -1,10 +1,8 @@
 {
   "object": "dictionary",
   "inferred_clues": {
-    "last_seen_location": "in the kitchen",
-    "traits": [
-      "it is a red and it is"
-    ]
+    "last_seen_location": "",
+    "traits": []
   },
   "priority_zones": [],
   "if_found": false

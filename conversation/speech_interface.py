@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
-from audio_stt import listen as fallback_listen
+from audio_stt import google_transcribe, listen as fallback_listen
 
 
 class SpeechInterface:
@@ -31,7 +31,7 @@ class SpeechInterface:
             self._bootstrap_whisper_stack()
 
     def _default_model_path(self) -> str:
-        return str(Path(__file__).resolve().parents[1] / "llm_agent" / "whisper_model.pt")
+        return str(Path(__file__).resolve().parents[1] / "llm_agent" / "whisper_turbo_model.pth")
 
     def _bootstrap_whisper_stack(self) -> None:
         try:
@@ -54,6 +54,11 @@ class SpeechInterface:
         Capture audio with the richest available pipeline.
         Always falls back to keyboard/microphone input helper.
         """
+        # Always attempt Google transcription first so the user can simply speak.
+        transcript = self._try_google_transcription(prompt)
+        if transcript:
+            return transcript
+
         if self._prefer_stretch and self.available:
             try:
                 print(prompt)
@@ -67,3 +72,12 @@ class SpeechInterface:
             except Exception as exc:
                 print(f"[WARN] Whisper-based transcription failed: {exc}")
         return fallback_listen(prompt)
+
+    def _try_google_transcription(self, prompt: str) -> str:
+        try:
+            text = google_transcribe(prompt)
+        except Exception as exc:  # pragma: no cover - guard against SR errors
+            print(f"[WARN] Google speech recognition failed: {exc}")
+            return ""
+
+        return text.strip() if text else ""
