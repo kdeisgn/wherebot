@@ -1,8 +1,10 @@
 {
-  "object": "dictionary",
+  "object": "apple",
   "inferred_clues": {
-    "last_seen_location": "",
-    "traits": []
+    "last_seen_location": "kitchen",
+    "traits": [
+      "red"
+    ]
   },
   "priority_zones": [],
   "if_found": false
