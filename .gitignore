@@ -1,0 +1,4 @@
+.env
+whisper_turbo_model.pth
+__pycache__/
+*.wav
